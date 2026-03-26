@@ -1,0 +1,175 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import List
+import numpy as np
+
+app = FastAPI()
+
+# -------------------------------
+# 📊 Card Database
+# -------------------------------
+cards = [
+    {
+        "name": "HDFC Regalia",
+        "annual_fee": 2500,
+        "reward_type": "travel",
+        "min_income": 60000,
+        "features": ["lounge", "travel_points"]
+    },
+    {
+        "name": "ICICI Amazon Pay",
+        "annual_fee": 0,
+        "reward_type": "shopping",
+        "min_income": 25000,
+        "features": ["cashback", "amazon"]
+    },
+    {
+        "name": "SBI Cashback Card",
+        "annual_fee": 999,
+        "reward_type": "cashback",
+        "min_income": 30000,
+        "features": ["cashback", "online"]
+    }
+]
+
+# -------------------------------
+# 🧾 User Model
+# -------------------------------
+class UserProfile(BaseModel):
+    income: int
+    credit_score: int
+    monthly_spend: float
+    spending_pattern: dict  
+    # Example:
+    # {"travel": 0.3, "shopping": 0.5, "fuel": 0.2}
+
+# -------------------------------
+# 🤖 AI Agent
+# -------------------------------
+class CreditCardAgent:
+
+    def __init__(self, cards):
+        self.cards = cards
+
+    def evaluate_card(self, user, card):
+        score = 0
+        reasons = []
+
+        # 1. Income eligibility
+        if user.income >= card["min_income"]:
+            score += 25
+            reasons.append("Eligible based on income")
+
+        # 2. Credit score factor
+        if user.credit_score > 750:
+            score += 25
+            reasons.append("Excellent credit score")
+        elif user.credit_score > 650:
+            score += 15
+            reasons.append("Good credit score")
+
+        # 3. Spending pattern match (AI-like reasoning)
+        for category, weight in user.spending_pattern.items():
+            if category in card["reward_type"]:
+                score += weight * 50
+                reasons.append(f"Matches your {category} spending")
+
+        # 4. Monthly spend optimization
+        if user.monthly_spend > 50000:
+            score += 15
+            reasons.append("High spending → premium benefits useful")
+
+        return score, reasons
+
+    def recommend(self, user):
+        results = []
+
+        for card in self.cards:
+            score, reasons = self.evaluate_card(user, card)
+
+            results.append({
+                "card": card["name"],
+                "score": round(score, 2),
+                "annual_fee": card["annual_fee"],
+                "reasons": reasons
+            })
+
+        return sorted(results, key=lambda x: x["score"], reverse=True)
+
+
+agent = CreditCardAgent(cards)
+
+# -------------------------------
+# 🚀 API Endpoint
+# -------------------------------
+@app.post("/ai-recommend")
+def recommend(user: UserProfile):
+    recommendations = agent.recommend(user)
+
+    return {
+        "top_recommendations": recommendations[:3],
+        "message": "AI Agent recommendations based on your financial behavior"
+    }
+
+#FRONT END
+import React, { useState } from "react";
+import axios from "axios";
+
+function App() {
+  const [data, setData] = useState({
+    income: "",
+    credit_score: "",
+    monthly_spend: "",
+    travel: "",
+    shopping: "",
+    fuel: ""
+  });
+
+  const [results, setResults] = useState([]);
+
+  const handleSubmit = async () => {
+    const payload = {
+      income: parseInt(data.income),
+      credit_score: parseInt(data.credit_score),
+      monthly_spend: parseFloat(data.monthly_spend),
+      spending_pattern: {
+        travel: parseFloat(data.travel),
+        shopping: parseFloat(data.shopping),
+        fuel: parseFloat(data.fuel)
+      }
+    };
+
+    const res = await axios.post("http://127.0.0.1:8000/ai-recommend", payload);
+    setResults(res.data.top_recommendations);
+  };
+
+  return (
+    <div style={{ padding: 20 }}>
+      <h1>🤖 AI Credit Card Advisor</h1>
+
+      <input placeholder="Income" onChange={e => setData({...data, income: e.target.value})} />
+      <input placeholder="Credit Score" onChange={e => setData({...data, credit_score: e.target.value})} />
+      <input placeholder="Monthly Spend" onChange={e => setData({...data, monthly_spend: e.target.value})} />
+
+      <h3>Spending Pattern (0–1)</h3>
+      <input placeholder="Travel" onChange={e => setData({...data, travel: e.target.value})} />
+      <input placeholder="Shopping" onChange={e => setData({...data, shopping: e.target.value})} />
+      <input placeholder="Fuel" onChange={e => setData({...data, fuel: e.target.value})} />
+
+      <button onClick={handleSubmit}>Get AI Recommendation</button>
+
+      {results.map((card, i) => (
+        <div key={i} style={{ border: "1px solid #ccc", marginTop: 10, padding: 10 }}>
+          <h2>{card.card}</h2>
+          <p>Score: {card.score}</p>
+          <p>Fee: ₹{card.annual_fee}</p>
+          <ul>
+            {card.reasons.map((r, idx) => <li key={idx}>{r}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default App;
